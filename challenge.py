@@ -1,11 +1,11 @@
 # Welcome!
 #
 # Your task is to use the NIH ICD-10 API to create a function that transforms raw patient data into a more human readable format. 
-# You will do this by filling out the TODO stub in the function description. the filled out solution function, when given patient_data, should 
+# You will do this by filling out the TODO stub in the function description. The filled out solution function, when given patient_data, should 
 # return an output identical to expected_output (non-trivially, that is, through a series of transformations using the api and the provided 
 # priority diagnosis substrings)
 
-#   In brief, the motivation is that you will:
+#   In brief, the motivation is that you will:s
 #  1) make the patient data human readable by including each code's description using the API
 #  2) identify malformed codes (codes that are not valid ICD-10)
 #  3) flag patients that have codes where the description contains "covid" or "respiratory failure" as priority_diagnoses
@@ -42,9 +42,80 @@ patient_data = [
      "diagnoses": ["G47.33", "I73.9", "N18.30", 1]}
 ]
 
+"""
+    Takes in patient data and uses the NIH ICD-10 API to transform it into a more human-readable format
+
+    Params:
+        data: list of { 'patient_id': number, 'diagnoses': list of diagnosis code strings }
+
+    Returns:
+        List of { 
+            'patient_id': number, 
+            'diagnoses': list of (code string, description string),
+            'priority_diagnoses': list of description strings,
+            'malformed_diagnoses': list of code strings
+        }
+"""
 def solution(data):
-    ... # TODO: transform the input into a more readable format that looks like expected_output
-    # 
+    MAX_LIST_RETURNED = 2
+    priority_diagnosis_flags = ["covid", "respiratory failure"] # diagnoses containing these words will be flagged as priority diagnoses
+
+    # helper function that checks whether description string contains any string in flags
+    def description_contains_flag(description, flags):
+        for flag in flags:
+            if flag.lower() in description.lower():
+                return True
+        return False
+
+    # aggregate diagnoses to be fetched (so only one API call is needed per code)
+    codes = []
+    for patient_data in data:
+        codes += patient_data["diagnoses"]
+
+    # perform the API call for each code and create a map from code to description
+    code_to_description = {}
+    for code in codes:
+        query_url = base_url.format(search_fields="code",search_term=code,max_list=MAX_LIST_RETURNED)
+        response = requests.get(query_url)
+
+        if response.status_code != 200:
+            raise Exception("Error! NIH ICD-10 API call returned a non-200 status code.")
+        
+        code_description_pairs = response.json()[3]
+
+        if len(code_description_pairs) == 1:
+            description = code_description_pairs[0][1]
+            code_to_description[code] = description
+        elif len(code_description_pairs) > 1:
+            raise Exception(f"Error! NIH ICD-10 API call returned multiple entries for code {code}. Code-to-diagnosis mapping is ambiguous.")
+
+    # iterate through patients, using code_to_description to populate 'diagnoses', 'priority_diagnoses', and 'malformed_diagnoses'
+    transformed_data = []
+    for patient_data in data:
+        patient_id, codes = patient_data["patient_id"], patient_data["diagnoses"]
+        diagnoses, priority_diagnoses, malformed_diagnoses = [], [], []
+        for code in codes:
+            if code in code_to_description:
+                code_description_tuple = (code, code_to_description[code])
+                diagnoses.append(code_description_tuple)
+
+                if description_contains_flag(description=code_to_description[code], flags=priority_diagnosis_flags):
+                    priority_diagnoses.append(code_to_description[code])
+            else:
+                malformed_diagnoses.append(code)
+
+        patient = { 
+            "patient_id": patient_id, 
+            "diagnoses": diagnoses, 
+            "priority_diagnoses": priority_diagnoses, 
+            "malformed_diagnoses": malformed_diagnoses 
+        }
+        transformed_data.append(patient)
+
+    # sort list based on length of 'priority_diagnoses'
+    sorted_transformed_data = sorted(transformed_data, key=lambda d: len(d["priority_diagnoses"]), reverse=True)
+
+    return sorted_transformed_data
 
 output = solution(patient_data)
 
@@ -92,6 +163,7 @@ expected_output = [
          'malformed_diagnoses': [1]
         }
     ]
+
 try:
     assert(output == expected_output)
 except AssertionError:
