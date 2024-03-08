@@ -24,7 +24,6 @@
 # API docs: https://clinicaltables.nlm.nih.gov/apidoc/icd10cm/v3/doc.html
 
 import requests
-from deepdiff import DeepDiff
 
 base_url = "https://clinicaltables.nlm.nih.gov/api/icd10cm/v3/search"
 patient_data = [
@@ -75,6 +74,8 @@ def solution(data):
                     patient_result["priority_diagnoses"].append(diagnosis_name)
 
         result.append(patient_result)
+
+    result = sorted(result, key =lambda d : len(d["priority_diagnoses"]), reverse=True)
 
     return result
 
@@ -144,9 +145,7 @@ expected_output = [
 ]
 try:
     # installed new library to compare the output and expected output correctly
-    diff = DeepDiff(output, expected_output, ignore_order=True)
-    print(diff)
-    assert len(diff) == 0
+    assert output == expected_output
 except AssertionError:
     print("error: your output does not match the expected output")
 else:
