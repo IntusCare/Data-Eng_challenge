@@ -43,8 +43,45 @@ patient_data = [
 ]
 
 def solution(data):
-    ... # TODO: transform the input into a more readable format that looks like expected_output
-    # 
+    output = []
+    
+    for patient in data:
+        diagnoses = []
+        malformed_diagnoses = []
+        priority_diagnoses = []
+
+        for code in patient["diagnoses"]:
+            if isinstance(code, str):
+                params = {
+                    "search_fields": "code,name",
+                    "search_term": code,
+                    "max_list": "7"
+                }
+                response = requests.get(base_url.format(search_fields=params['search_fields'], search_term=params['search_term'], max_list=params['max_list']))
+
+                result = response.json()
+
+                if result and len(result) > 3 and result[3]:
+                    code = result[3][0][0]
+                    description = result[3][0][1]
+                    diagnoses.append((code, description))
+
+                    if "covid" in description.lower() or "respiratory failure" in description.lower():
+                        priority_diagnoses.append(description)
+                else:
+                    malformed_diagnoses.append(code)
+            else:
+                malformed_diagnoses.append(code)
+
+        output.append({
+            "patient_id": patient["patient_id"],
+            "diagnoses": diagnoses,
+            "priority_diagnoses": priority_diagnoses,
+            "malformed_diagnoses": malformed_diagnoses
+        })
+    
+    return sorted(output, key=lambda x: len(x['priority_diagnoses']), reverse=True)
+
 
 output = solution(patient_data)
 
