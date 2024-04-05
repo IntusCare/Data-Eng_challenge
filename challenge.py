@@ -42,9 +42,52 @@ patient_data = [
      "diagnoses": ["G47.33", "I73.9", "N18.30", 1]}
 ]
 
+def getDiseaseNameFromCode(code):
+    url = base_url.format(search_fields="code", search_term=code, max_list=10)
+    response = requests.get(url)
+    if response.status_code == 200:
+        query_results = response.json()[3]
+        for item in query_results:
+            if item[0] == code:
+                return item[1]
+        return None
+    else:
+        return None
+
 def solution(data):
     ... # TODO: transform the input into a more readable format that looks like expected_output
     # 
+    
+    output = []
+    
+    for patient in patient_data:
+        
+        diagnoses = []
+        priority_diagnoses = []
+        malformed_diagnoses = []
+        
+        for code in patient["diagnoses"]:
+            name = getDiseaseNameFromCode(code)
+            if name == None:
+                malformed_diagnoses.append(code)
+            else:
+                if 'covid' in name.lower() or 'respiratory failure' in name.lower():
+                    priority_diagnoses.append(name)
+                
+                diagnoses.append((code, getDiseaseNameFromCode(code)))
+        
+        
+        patient_obj = {
+            "patient_id": patient["patient_id"],
+            "diagnoses": diagnoses,
+            "priority_diagnoses": priority_diagnoses,
+            "malformed_diagnoses": malformed_diagnoses
+        }
+        output.append(patient_obj)
+    
+    output.sort(key=lambda x: len(x["priority_diagnoses"]), reverse=True)
+    return output
+        
 
 output = solution(patient_data)
 
